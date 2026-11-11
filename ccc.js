@@ -96,7 +96,67 @@
     return (daysBefore - daysAfter) * annualFlow / daysInYear;
   }
 
+  // ---------- Levers ----------
+
+  // The balance a day count implies: days x annual flow / days in year.
+  // Flow is COGS for inventory and payables, revenue for receivables.
+  function impliedBalance(daysOut, annualFlow, daysInYear) {
+    return daysOut * annualFlow / daysInYear;
+  }
+
+  // Interest saved each year if the freed cash pays down the bank line.
+  // Paydown can't exceed what was owed Before. If cash freed is negative,
+  // ElectroMart borrows more, and the result is a negative saving.
+  function interestSaved(cashFreedTotal, bankLineBefore, bankRate) {
+    return Math.min(cashFreedTotal, bankLineBefore) * bankRate;
+  }
+
+  // Days past the net due date that ElectroMart pays. Never below zero.
+  function daysPastDue(dpoDays, netDays) {
+    return Math.max(0, dpoDays - netDays);
+  }
+
+  // Nominal annual cost of skipping the supplier discount:
+  //   d / (1 - d) x days in year / (days paid - discount days)
+  // If ElectroMart pays within the discount period, it takes the discount,
+  // so there is no cost: returns null.
+  function skipDiscountCost(discount, dpoDays, discountDays, daysInYear) {
+    if (dpoDays <= discountDays) return null;
+    return discount / (1 - discount) * daysInYear / (dpoDays - discountDays);
+  }
+
+  // Everything the lever panel shows, for a chosen set of days.
+  // Revenue and COGS are held at their Before values.
+  function leverScenario(before, chosen, assumptions) {
+    var year = assumptions.days_in_year;
+    var balances = {
+      inventory: impliedBalance(chosen.dio, before.cogs, year),
+      receivables: impliedBalance(chosen.dso, before.revenue, year),
+      payables: impliedBalance(chosen.dpo, before.cogs, year)
+    };
+    var freed = {
+      inventory: before.inventory - balances.inventory,
+      receivables: before.accounts_receivable - balances.receivables,
+      payables: balances.payables - before.accounts_payable
+    };
+    freed.total = freed.inventory + freed.receivables + freed.payables;
+    return {
+      ccc: ccc(chosen.dio, chosen.dso, chosen.dpo),
+      balances: balances,
+      cashFreed: freed,
+      interestSaved: interestSaved(freed.total, before.notes_payable, assumptions.bank_rate),
+      daysPastDue: daysPastDue(chosen.dpo, assumptions.net_days),
+      skipDiscountCost: skipDiscountCost(
+        assumptions.supplier_discount, chosen.dpo, assumptions.discount_days, year)
+    };
+  }
+
   var api = {
+    impliedBalance: impliedBalance,
+    interestSaved: interestSaved,
+    daysPastDue: daysPastDue,
+    skipDiscountCost: skipDiscountCost,
+    leverScenario: leverScenario,
     parseCSV: parseCSV,
     readStatements: readStatements,
     readAssumptions: readAssumptions,
