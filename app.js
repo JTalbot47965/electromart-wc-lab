@@ -170,6 +170,15 @@
   el("set-before").addEventListener("click", function () { if (state) setDays(state.before); });
   el("set-after").addEventListener("click", function () { if (state) setDays(state.after); });
 
+  // Register the service worker so the app installs and works offline.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker.register("sw.js").catch(function (err) {
+        console.warn("Service worker not registered:", err);
+      });
+    });
+  }
+
   Promise.all([loadCSV("data/electromart.csv"), loadCSV("data/assumptions.csv")])
     .then(function (results) {
       render(CCC.readStatements(results[0]), CCC.readAssumptions(results[1]));
